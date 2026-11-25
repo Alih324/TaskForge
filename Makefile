@@ -1,29 +1,26 @@
 
-CC ?= cc
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -D_POSIX_C_SOURCE=200809L -Iinclude
 
-CPPFLAGS ?= -D_XOPEN_SOURCE=700 -D_POSIX_C_SOURCE=200809L -Iinclude
-CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -O2
+BUILD_DIR = build
+CONTROLLER = $(BUILD_DIR)/taskforge
+WORKER = $(BUILD_DIR)/taskforge_worker
 
-BUILD_DIR := build
-CONTROLLER := $(BUILD_DIR)/taskforge
-WORKER := $(BUILD_DIR)/taskforge_worker
-
-CONTROLLER_SOURCES := src/main.c src/controller.c src/task.c src/ui.c
-WORKER_SOURCES := src/worker_main.c src/worker.c src/task.c
-HEADERS := include/task.h include/controller.h include/worker.h include/ui.h
+CONTROLLER_FILES = src/main.c src/controller.c src/task.c src/ui.c
+WORKER_FILES = src/worker_main.c src/worker.c src/task.c
 
 .PHONY: all run clean
 
 all: $(CONTROLLER) $(WORKER)
 
 $(BUILD_DIR):
-	mkdir -p $@
+	mkdir -p $(BUILD_DIR)
 
-$(CONTROLLER): $(CONTROLLER_SOURCES) $(HEADERS) | $(BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(CONTROLLER_SOURCES) -o $@
+$(CONTROLLER): $(CONTROLLER_FILES) include/task.h include/controller.h include/ui.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(CONTROLLER_FILES) -o $(CONTROLLER)
 
-$(WORKER): $(WORKER_SOURCES) $(HEADERS) | $(BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WORKER_SOURCES) -o $@
+$(WORKER): $(WORKER_FILES) include/task.h include/worker.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(WORKER_FILES) -o $(WORKER)
 
 run: all
 	./$(CONTROLLER)

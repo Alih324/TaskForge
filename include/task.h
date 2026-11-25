@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#define MAX_TASKS 50
+
 typedef enum {
     TASK_SUM,
     TASK_PRIME_COUNT
@@ -29,10 +31,8 @@ typedef struct {
 } Task;
 
 typedef struct {
-    Task *items;
+    Task items[MAX_TASKS];
     size_t count;
-    size_t capacity;
-    int next_id;
     size_t last_submitted;
     size_t last_succeeded;
     size_t last_failed;

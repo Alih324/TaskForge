@@ -1,102 +1,175 @@
 # TaskForge
+### Phase 1 – Processes and System Calls
 
-TaskForge is a small Linux/POSIX C application for an Operating Systems Phase 1 project. It demonstrates a Controller creating one child process per task, replacing each child with a separate Worker executable, and collecting each child's termination status.
+## 1. Project Overview
 
-## Phase 1 objective and features
+TaskForge is a Linux-based command-line application written in C that demonstrates process creation and management.
 
-- Create tasks interactively and keep their registry in memory for the current session.
-- Run each pending task in its own Worker process; multiple Workers are launched before the Controller waits for them.
-- Calculate an inclusive range sum or count primes in an inclusive range.
-- Track each task's ID, type, range, Worker PID, and `PENDING`, `RUNNING`, `SUCCEEDED`, or `FAILED` status.
-- Display the Controller and Worker PID/PPID and a summary of the latest batch.
-- Reap every child created by a batch, including when a later `fork()` fails.
+The application uses a **Controller** to manage user-submitted calculation tasks and separate **Worker processes** to execute them. The Controller creates Workers, monitors their execution, and collects their termination statuses.
 
-## Process roles and workflow
+## 2. Features
 
-The **Controller** owns the task registry, menu interaction, process creation, PID tracking, wait/status handling, and summaries. The **Worker** validates its command-line task details, reports its identity, computes the requested result, and exits with status 0 on success or a nonzero status on error.
+- Interactive menu for submitting and managing tasks.
+- Range Sum and Prime Count calculations.
+- Separate Worker process for each pending task.
+- Process creation using `fork()`.
+- Worker execution using `execvp()`.
+- Process identification using PID and PPID.
+- Process synchronization using `waitpid()`.
+- Task status tracking and execution summaries.
 
-For each pending task, the Controller calls `fork()`. In the child it calls `execvp()` on the sibling `taskforge_worker` executable and passes the task ID, type, and range as arguments. The parent records the PID and continues launching the rest of the batch. It then calls `waitpid()` until every child is collected, mapping each returned PID and its exit or signal status back to the correct task. Collecting whichever Worker finishes first avoids leaving completed Workers unreaped while another task runs. No IPC is needed because task inputs are passed as arguments and results are displayed by the Workers.
+## 3. System Architecture
 
-## Project structure
+TaskForge consists of two main components:
+
+| Component | Responsibility |
+|---|---|
+| Controller | Manages the menu, task registry, process creation, and termination monitoring. |
+| Worker | Validates task arguments, performs calculations, and prints the result. |
+
+The Controller starts a Worker for each pending task. All Workers are started before the Controller waits for their completion, allowing multiple tasks to execute concurrently.
+
+### Process Workflow
+
+1. The user submits a calculation task.
+2. The task is stored as `PENDING`.
+3. The Controller creates a child process using `fork()`.
+4. The child executes the Worker program using `execvp()`.
+5. The Worker performs the assigned calculation.
+6. The Controller waits for the Worker using `waitpid()`.
+7. The task status is updated and the execution summary is displayed.
+
+![Worker processes executing tasks](screenshots/workers_execution.png)
+
+*The screenshot shows the Controller creating Worker processes and the Workers executing their assigned calculations.*
+
+## 4. Linux System Calls
+
+| System Call | Purpose |
+|---|---|
+| `fork()` | Creates a child process for a pending task. |
+| `execvp()` | Replaces the child process image with the Worker executable. |
+| `getpid()` | Returns the current process ID. |
+| `getppid()` | Returns the parent process ID. |
+| `waitpid()` | Waits for a specific Worker and collects its termination status. |
+| `_exit()` | Terminates the child if Worker execution fails. |
+
+## 5. Process Identification
+
+The Controller and Workers display their process identifiers:
+
+- **PID:** Identifies the current process.
+- **PPID:** Identifies the parent process.
+
+Each Worker is created as a child of the Controller. During normal execution, the Worker's PPID matches the Controller's PID.
+
+![Controller and Worker process identification](screenshots/workers_execution.png)
+
+*The screenshot displays Worker PIDs and their parent PID.*
+
+## 6. Worker Execution
+
+TaskForge supports two calculation types:
+
+- **Range Sum:** Calculates the sum of integers within an inclusive range.
+- **Prime Count:** Counts prime numbers within an inclusive range.
+
+Each task is assigned to a Worker process. The Worker validates its arguments, performs the calculation, prints the result, and exits with an appropriate status.
+
+The Controller records the result of each Worker's execution through its exit status.
+
+## 7. Process Synchronization and Termination
+
+After starting the pending Workers, the Controller waits for each process using `waitpid()`.
+
+It checks whether a Worker:
+
+- Exited normally.
+- Returned a successful or unsuccessful exit code.
+- Was terminated by a signal.
+
+The collected status is used to update the task as `SUCCEEDED` or `FAILED`.
+
+![Worker termination summary](screenshots/process_termination_summary.png)
+
+*The screenshot shows the final execution summary and the status of each Worker.*
+
+## 8. Task Registry
+
+The Controller maintains a task registry during the application session. Each task contains its ID, type, range, Worker PID, and execution status.
+
+![Task registry](screenshots/task_registry.png)
+
+*The screenshot shows the registered tasks and their final statuses.*
+
+## 9. Project Structure
 
 ```text
 TaskForge/
 ├── src/
-│   ├── main.c             # Controller entry point
-│   ├── controller.c       # Registry and process management
-│   ├── ui.c               # Interactive terminal menu and display
-│   ├── worker_main.c      # Separate Worker executable entry point
-│   └── worker.c           # Worker validation and calculations
+│   ├── main.c
+│   ├── controller.c
+│   ├── ui.c
+│   ├── task.c
+│   ├── worker_main.c
+│   └── worker.c
 ├── include/
-│   ├── task.h             # Shared task, status, and registry types
+│   ├── task.h
 │   ├── controller.h
 │   ├── ui.h
 │   └── worker.h
-├── build/                 # Generated executables (ignored by Git)
-├── screenshots/           # Submission screenshots
+├── build/
+├── screenshots/
 ├── Makefile
 └── README.md
 ```
 
-## Task types and examples
+## 10. Requirements
 
-1. **Sum of range**: adds every integer from start through end. `1..100` produces `5050`.
-2. **Prime count**: counts prime integers from start through end. Values below 2 are not prime; `1..100` produces `25`.
+- Linux operating system.
+- GCC compiler.
+- GNU Make.
+- POSIX process APIs.
 
-Both task types require `start <= end`. Sum overflow for the platform's `long` type is reported as a failed task instead of invoking signed overflow. Prime results use an unsigned count. Extremely large ranges may take a long time to calculate.
+No third-party libraries are required.
 
-## System calls
+## 11. Build and Run
 
-| Call | Use in TaskForge |
-|---|---|
-| `fork()` | Creates one child for each pending task. The returned child PID is stored by the Controller. |
-| `execvp()` | Replaces the child process image with the separate Worker program. Its executable path is derived from the running Controller's location, so running `build/taskforge` from another working directory still finds its sibling Worker on Linux. |
-| `getpid()` | Reports the Controller or Worker process ID. |
-| `getppid()` | Reports the Controller's parent and each Worker's parent, making the hierarchy visible. |
-| `waitpid()` | Collects any completed child in the batch; the returned PID associates its normal exit code or signal termination with the correct task. Interrupted calls are retried. |
+Open a terminal in the TaskForge project directory.
 
-## Build and run
+### Build
 
-Requirements: a Linux/POSIX environment and a C compiler such as GCC or Clang.
-
-```sh
-make clean
+```bash
 make
-make run
 ```
 
-`make` creates `build/taskforge` and `build/taskforge_worker`. You can also start the Controller directly with `./build/taskforge`. The Worker is launched by the Controller and is not the interactive entry point.
+### Run
 
-## Example interaction
-
-```text
-===== TaskForge Menu =====
-1. Submit a New Task
-2. Run Pending Tasks
-3. View All Tasks
-4. View Last Execution Summary
-5. Exit
-Choose an option: 1
-Task type:
-  1. Calculate the sum of a range
-  2. Count primes in a range
-Select task type: 1
-Start value: 1
-End value: 100
-Task 1 submitted: Sum of range, 1..100 [PENDING].
+```bash
+./build/taskforge
 ```
 
-Submitting a prime task for the same range and selecting **Run Pending Tasks** starts two Workers. Their output includes distinct PIDs, the Controller PPID, and results `5050` and `25`; the Controller then prints the exit outcomes and summary.
+## 12. Demo Instructions
 
-## Input and limitations
+1. Start TaskForge.
+2. Submit a Range Sum task.
+3. Submit a Prime Count task.
+4. Select **Run Pending Tasks**.
+5. Observe the Controller and Worker process information.
+6. Review the calculation results.
+7. View the task registry and execution summary.
 
-Input is read a line at a time and parsed with `strtol()`. Invalid menu options, malformed numbers, reversed ranges, EOF, and empty task lists are handled without crashing. The task registry and execution history last only until the Controller exits. This Phase 1 application does not include persistence, a Worker Pool, or interprocess communication. Work is sequential within each Worker, although Workers in the same batch run concurrently as separate processes.
+Submitting at least two tasks before running them demonstrates the creation and management of multiple child processes.
 
-## Screenshot checklist
+## 13. Phase 1 Scope
 
-The `screenshots/` directory contains `phase1_execution.png` from the earlier hardcoded demo. It is retained as an existing project artifact, but it does not show the current menu and should be replaced or supplemented with genuine screenshots of this version before submission. No screenshots are generated or claimed by the code changes.
+This phase focuses on process creation, execution, identification, synchronization, and termination management.
 
-1. Controller identity and the menu, followed by submitting at least two tasks.
-2. A batch with two Workers showing each Worker PID/PPID and the sum and prime results.
-3. The Controller execution summary and **View All Tasks** showing final statuses.
-4. Optional: invalid input and the no-pending-tasks message.
+Tasks are stored in memory during the application session. Workers print their calculation results directly to standard output, while the Controller collects process termination information and exit statuses.
+
+Inter-process communication, persistent storage, and a persistent Worker Pool are outside the scope of this Phase 1 implementation.
+
+---
+
+**TaskForge – Operating Systems Project**  
+*Phase 1: Processes and System Calls*
